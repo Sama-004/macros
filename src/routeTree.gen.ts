@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SidebarRouteImport } from './routes/_sidebar'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthSignupRouteImport } from './routes/auth/signup'
+import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as SidebarSettingsRouteImport } from './routes/_sidebar/settings'
 import { Route as SidebarHomeRouteImport } from './routes/_sidebar/home'
 import { Route as SidebarCalendarRouteImport } from './routes/_sidebar/calendar'
@@ -23,6 +25,16 @@ const SidebarRoute = SidebarRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSignupRoute = AuthSignupRouteImport.update({
+  id: '/auth/signup',
+  path: '/auth/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/auth/login',
+  path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SidebarSettingsRoute = SidebarSettingsRouteImport.update({
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof SidebarCalendarRoute
   '/home': typeof SidebarHomeRoute
   '/settings': typeof SidebarSettingsRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +73,8 @@ export interface FileRoutesByTo {
   '/calendar': typeof SidebarCalendarRoute
   '/home': typeof SidebarHomeRoute
   '/settings': typeof SidebarSettingsRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +84,28 @@ export interface FileRoutesById {
   '/_sidebar/calendar': typeof SidebarCalendarRoute
   '/_sidebar/home': typeof SidebarHomeRoute
   '/_sidebar/settings': typeof SidebarSettingsRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/add-product' | '/calendar' | '/home' | '/settings'
+  fullPaths:
+    | '/'
+    | '/add-product'
+    | '/calendar'
+    | '/home'
+    | '/settings'
+    | '/auth/login'
+    | '/auth/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/add-product' | '/calendar' | '/home' | '/settings'
+  to:
+    | '/'
+    | '/add-product'
+    | '/calendar'
+    | '/home'
+    | '/settings'
+    | '/auth/login'
+    | '/auth/signup'
   id:
     | '__root__'
     | '/'
@@ -82,11 +114,15 @@ export interface FileRouteTypes {
     | '/_sidebar/calendar'
     | '/_sidebar/home'
     | '/_sidebar/settings'
+    | '/auth/login'
+    | '/auth/signup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SidebarRoute: typeof SidebarRouteWithChildren
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthSignupRoute: typeof AuthSignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -103,6 +139,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/signup': {
+      id: '/auth/signup'
+      path: '/auth/signup'
+      fullPath: '/auth/signup'
+      preLoaderRoute: typeof AuthSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_sidebar/settings': {
@@ -156,6 +206,8 @@ const SidebarRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SidebarRoute: SidebarRouteWithChildren,
+  AuthLoginRoute: AuthLoginRoute,
+  AuthSignupRoute: AuthSignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

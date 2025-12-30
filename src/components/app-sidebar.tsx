@@ -1,4 +1,4 @@
-import { Home, Plus, Calendar, Settings } from "lucide-react";
+import { Home, Plus, Calendar, Settings, LogOut } from "lucide-react";
 import {
 	Sidebar,
 	SidebarContent,
@@ -10,7 +10,9 @@ import {
 	SidebarMenuItem,
 	SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { logoutFn } from "@/lib/auth";
+import type { User } from "@/lib/session";
 
 const menuItems = [
 	{ id: "Home", label: "Home", icon: Home, to: "/home" },
@@ -19,7 +21,20 @@ const menuItems = [
 	{ id: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ] as const;
 
-export function AppSidebar() {
+type AppSidebarProps = {
+	user: User;
+};
+
+export function AppSidebar({ user }: AppSidebarProps) {
+	const router = useRouter();
+
+	const handleLogout = async () => {
+		const result = await logoutFn();
+		if (result.success) {
+			router.navigate({ to: "/auth/login" });
+		}
+	};
+
 	return (
 		<Sidebar>
 			<SidebarContent>
@@ -52,9 +67,18 @@ export function AppSidebar() {
 			</SidebarContent>
 
 			<SidebarFooter className="border-t border-border p-4">
-				<div className="text-sm text-muted-foreground space-y-1">
-					<p>Goal: 2000 kcal</p>
-					<p>Protein: 150g | Carbs: 200g | Fats: 65g</p>
+				<div className="flex items-center justify-between">
+					<div className="text-sm">
+						<p className="font-medium">{user.username}</p>
+						<p className="text-muted-foreground">Logged in</p>
+					</div>
+					<button
+						onClick={handleLogout}
+						className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+						title="Logout"
+					>
+						<LogOut size={18} />
+					</button>
 				</div>
 			</SidebarFooter>
 		</Sidebar>

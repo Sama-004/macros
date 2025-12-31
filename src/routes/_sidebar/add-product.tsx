@@ -1,22 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { db } from "@/db/database";
+
+type Product = {
+	id: number;
+	name: string;
+	calories: number;
+	protein: number;
+	carbs: number;
+	fats: number;
+};
+
+const getProducts = createServerFn({ method: "GET" }).handler(async () => {
+	const result = await db.execute(
+		"SELECT * FROM products ORDER BY created_at DESC",
+	);
+	return result.rows as unknown as Product[];
+});
+
+const addProduct = createServerFn({ method: "POST" })
+	.inputValidator(
+		(data: {
+			name: string;
+			calories: number;
+			protein: number;
+			carbs: number;
+			fats: number;
+		}) => data,
+	)
+	.handler(async ({ data }) => {
+		await db.execute({
+			sql: "INSERT INTO products (name, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?)",
+			args: [data.name, data.calories, data.protein, data.carbs, data.fats],
+		});
+	});
+
+const deleteProduct = createServerFn({ method: "POST" })
+	.inputValidator((data: { id: number }) => data)
+	.handler(async ({ data }) => {
+		await db.execute({
+			sql: "DELETE FROM products WHERE id = ?",
+			args: [data.id],
+		});
+	});
 
 export const Route = createFileRoute("/_sidebar/add-product")({
 	component: RouteComponent,
+	loader: () => getProducts(),
 });
 
-const COMMON_PRODUCTS = [
-	{ name: "Chicken Breast", calories: 165, protein: 31, carbs: 0, fats: 3.6 },
-	{ name: "Brown Rice", calories: 111, protein: 2.6, carbs: 23, fats: 0.9 },
-	{ name: "Broccoli", calories: 34, protein: 2.8, carbs: 7, fats: 0.4 },
-	{ name: "Salmon", calories: 208, protein: 22, carbs: 0, fats: 13 },
-	{ name: "Eggs", calories: 155, protein: 13, carbs: 1.1, fats: 11 },
-	{ name: "Oatmeal", calories: 389, protein: 17, carbs: 66, fats: 7 },
-	{ name: "Almonds", calories: 579, protein: 21, carbs: 22, fats: 50 },
-	{ name: "Banana", calories: 89, protein: 1.1, carbs: 23, fats: 0.3 },
-];
-
 function RouteComponent() {
+	const initialProducts = Route.useLoaderData();
+	const [products, setProducts] = useState(initialProducts);
 	const [formData, setFormData] = useState({
 		name: "",
 		grams: 100,
@@ -25,8 +61,6 @@ function RouteComponent() {
 		carbs: "",
 		fats: "",
 	});
-
-	const [products, setProducts] = useState(COMMON_PRODUCTS);
 	const [showForm, setShowForm] = useState(false);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,7 +68,12 @@ function RouteComponent() {
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
-	const handleAddProduct = (e: React.FormEvent) => {
+	const handleDeleteProduct = async (id: number) => {
+		await deleteProduct({ data: { id } });
+		setProducts(products.filter((p) => p.id !== id));
+	};
+
+	const handleAddProduct = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (
 			formData.name &&
@@ -43,16 +82,17 @@ function RouteComponent() {
 			formData.carbs &&
 			formData.fats
 		) {
-			setProducts([
-				...products,
-				{
+			await addProduct({
+				data: {
 					name: formData.name,
 					calories: Number.parseFloat(formData.calories),
 					protein: Number.parseFloat(formData.protein),
 					carbs: Number.parseFloat(formData.carbs),
 					fats: Number.parseFloat(formData.fats),
 				},
-			]);
+			});
+			const updated = await getProducts();
+			setProducts(updated);
 			setFormData({
 				name: "",
 				grams: 100,
@@ -149,6 +189,7 @@ function RouteComponent() {
 
 			{!showForm && (
 				<button
+					type="button"
 					onClick={() => setShowForm(true)}
 					className="self-start mb-6 px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90"
 				>
@@ -158,18 +199,27 @@ function RouteComponent() {
 
 			<div className="flex-1 overflow-auto">
 				<div className="grid grid-cols-1 gap-3">
-					{products.map((product, idx) => (
+					{products.map((product) => (
 						<div
-							key={idx}
+							key={product.id}
 							className="bg-card p-4 rounded-lg border border-border hover:bg-secondary transition-colors"
 						>
 							<div className="flex justify-between items-start mb-2">
 								<h3 className="font-semibold text-foreground">
 									{product.name}
 								</h3>
-								<span className="text-sm font-medium text-blue-600">
-									{product.calories} kcal
-								</span>
+								<div className="flex items-center gap-3">
+									<span className="text-sm font-medium text-blue-600">
+										{product.calories} kcal
+									</span>
+									<button
+										type="button"
+										onClick={() => handleDeleteProduct(product.id)}
+										className="text-sm text-red-500 hover:text-red-700 font-medium"
+									>
+										Delete
+									</button>
+								</div>
 							</div>
 							<div className="grid grid-cols-3 gap-4 text-sm">
 								<div>

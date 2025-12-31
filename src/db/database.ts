@@ -24,7 +24,7 @@ async function initDatabase() {
 			password TEXT NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+
 		`CREATE TABLE IF NOT EXISTS products (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
@@ -34,6 +34,8 @@ async function initDatabase() {
 			fats REAL NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+
+		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
 	];
 
 	for (const statement of schemaStatements) {

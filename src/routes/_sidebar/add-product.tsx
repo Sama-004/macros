@@ -75,34 +75,29 @@ function RouteComponent() {
 
 	const handleAddProduct = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (
-			formData.name &&
-			formData.calories &&
-			formData.protein &&
-			formData.carbs &&
-			formData.fats
-		) {
-			await addProduct({
-				data: {
-					name: formData.name,
-					calories: Number.parseFloat(formData.calories),
-					protein: Number.parseFloat(formData.protein),
-					carbs: Number.parseFloat(formData.carbs),
-					fats: Number.parseFloat(formData.fats),
-				},
-			});
-			const updated = await getProducts();
-			setProducts(updated);
-			setFormData({
-				name: "",
-				grams: 100,
-				calories: "",
-				protein: "",
-				carbs: "",
-				fats: "",
-			});
-			setShowForm(false);
+		if (!formData.name.trim()) {
+			return;
 		}
+		await addProduct({
+			data: {
+				name: formData.name.trim(),
+				calories: Number.parseFloat(formData.calories) || 0,
+				protein: Number.parseFloat(formData.protein) || 0,
+				carbs: Number.parseFloat(formData.carbs) || 0,
+				fats: Number.parseFloat(formData.fats) || 0,
+			},
+		});
+		const updated = await getProducts();
+		setProducts(updated);
+		setFormData({
+			name: "",
+			grams: 100,
+			calories: "",
+			protein: "",
+			carbs: "",
+			fats: "",
+		});
+		setShowForm(false);
 	};
 
 	return (

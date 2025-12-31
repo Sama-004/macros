@@ -1,4 +1,4 @@
-import { Home, Plus, Calendar, Settings, LogOut } from "lucide-react";
+import { Home, Plus, Calendar, History, Settings, LogOut } from "lucide-react";
 import {
 	Sidebar,
 	SidebarContent,
@@ -17,6 +17,7 @@ import type { User } from "@/lib/session";
 const menuItems = [
 	{ id: "Home", label: "Home", icon: Home, to: "/home" },
 	{ id: "add-product", label: "Add Product", icon: Plus, to: "/add-product" },
+	{ id: "history", label: "Edit History", icon: History, to: "/history" },
 	{ id: "calendar", label: "Calendar", icon: Calendar, to: "/calendar" },
 	{ id: "settings", label: "Settings", icon: Settings, to: "/settings" },
 ] as const;

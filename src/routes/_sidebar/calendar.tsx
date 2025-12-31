@@ -1,76 +1,106 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { db } from "@/db/database";
+
+type DailyData = {
+	date: string;
+	calories: number;
+	protein: number;
+};
+
+const getMonthlyData = createServerFn({ method: "GET" })
+	.inputValidator((data: { year: number; month: number }) => data)
+	.handler(async ({ data }) => {
+		const startDate = `${data.year}-${String(data.month + 1).padStart(2, "0")}-01`;
+		const endDate = `${data.year}-${String(data.month + 1).padStart(2, "0")}-31`;
+
+		const result = await db.execute({
+			sql: `SELECT m.date,
+					SUM((mi.grams / p.grams) * p.calories) as calories,
+					SUM((mi.grams / p.grams) * p.protein) as protein
+				  FROM meals m
+				  JOIN meal_items mi ON m.id = mi.meal_id
+				  JOIN products p ON mi.product_id = p.id
+				  WHERE m.date >= ? AND m.date <= ?
+				  GROUP BY m.date`,
+			args: [startDate, endDate],
+		});
+
+		return result.rows as unknown as DailyData[];
+	});
 
 export const Route = createFileRoute("/_sidebar/calendar")({
 	component: RouteComponent,
 });
 
-interface DayData {
-	date: number;
+type DayStats = {
 	calories: number;
-	goal: number;
-}
+	protein: number;
+};
 
 function RouteComponent() {
-	const [currentDate, setCurrentDate] = useState(new Date(2025, 0, 1));
+	const navigate = useNavigate();
+	const [currentDate, setCurrentDate] = useState(new Date());
+	const [dailyData, setDailyData] = useState<Record<number, DayStats>>({});
+	const calorieGoal = 2000;
+	const proteinGoal = 150;
 
 	const daysInMonth = (date: Date) =>
 		new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 	const firstDayOfMonth = (date: Date) =>
 		new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 
-	// Hardcoded daily data
-	const dailyData: Record<number, DayData> = {
-		1: { date: 1, calories: 1850, goal: 2000 },
-		2: { date: 2, calories: 2050, goal: 2000 },
-		3: { date: 3, calories: 1900, goal: 2000 },
-		4: { date: 4, calories: 2200, goal: 2000 },
-		5: { date: 5, calories: 1950, goal: 2000 },
-		6: { date: 6, calories: 2000, goal: 2000 },
-		7: { date: 7, calories: 2100, goal: 2000 },
-		8: { date: 8, calories: 1800, goal: 2000 },
-		9: { date: 9, calories: 2150, goal: 2000 },
-		10: { date: 10, calories: 1950, goal: 2000 },
-		11: { date: 11, calories: 2050, goal: 2000 },
-		12: { date: 12, calories: 2100, goal: 2000 },
-		13: { date: 13, calories: 1900, goal: 2000 },
-		14: { date: 14, calories: 2000, goal: 2000 },
-		15: { date: 15, calories: 2200, goal: 2000 },
-		16: { date: 16, calories: 1850, goal: 2000 },
-		17: { date: 17, calories: 2050, goal: 2000 },
-		18: { date: 18, calories: 1950, goal: 2000 },
-		19: { date: 19, calories: 2000, goal: 2000 },
-		20: { date: 20, calories: 2100, goal: 2000 },
-		21: { date: 21, calories: 1800, goal: 2000 },
-		22: { date: 22, calories: 2150, goal: 2000 },
-		23: { date: 23, calories: 1950, goal: 2000 },
-		24: { date: 24, calories: 2050, goal: 2000 },
-		25: { date: 25, calories: 2100, goal: 2000 },
-		26: { date: 26, calories: 1900, goal: 2000 },
-		27: { date: 27, calories: 2000, goal: 2000 },
-		28: { date: 28, calories: 2200, goal: 2000 },
-		29: { date: 29, calories: 1850, goal: 2000 },
-		30: { date: 30, calories: 2050, goal: 2000 },
-		31: { date: 31, calories: 1950, goal: 2000 },
+	const loadMonthData = async (date: Date) => {
+		const data = await getMonthlyData({
+			data: { year: date.getFullYear(), month: date.getMonth() },
+		});
+		const dataMap: Record<number, DayStats> = {};
+		for (const row of data) {
+			const day = Number.parseInt(row.date.split("-")[2], 10);
+			dataMap[day] = {
+				calories: Math.round(row.calories),
+				protein: Math.round(row.protein),
+			};
+		}
+		setDailyData(dataMap);
 	};
 
-	const getProgressPercentage = (actual: number, goal: number) => {
-		return Math.min((actual / goal) * 100, 100);
+	const isCalorieGoalMet = (actual: number) =>
+		actual >= calorieGoal * 0.95 && actual <= calorieGoal * 1.05;
+
+	const prevMonth = () => {
+		const newDate = new Date(
+			currentDate.getFullYear(),
+			currentDate.getMonth() - 1,
+		);
+		setCurrentDate(newDate);
+		loadMonthData(newDate);
 	};
 
-	const isGoalMet = (actual: number, goal: number) =>
-		actual >= goal * 0.95 && actual <= goal * 1.05;
+	const nextMonth = () => {
+		const newDate = new Date(
+			currentDate.getFullYear(),
+			currentDate.getMonth() + 1,
+		);
+		setCurrentDate(newDate);
+		loadMonthData(newDate);
+	};
 
-	const prevMonth = () =>
-		setCurrentDate(
-			new Date(currentDate.getFullYear(), currentDate.getMonth() - 1),
-		);
-	const nextMonth = () =>
-		setCurrentDate(
-			new Date(currentDate.getFullYear(), currentDate.getMonth() + 1),
-		);
+	const handleDayClick = (day: number) => {
+		const year = currentDate.getFullYear();
+		const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+		const dayStr = String(day).padStart(2, "0");
+		const dateStr = `${year}-${month}-${dayStr}`;
+		navigate({ to: "/history", search: { date: dateStr } });
+	};
+
+	// Load data on mount
+	useEffect(() => {
+		loadMonthData(currentDate);
+	}, []);
 
 	const days = [];
 	const totalDays = daysInMonth(currentDate);
@@ -136,68 +166,90 @@ function RouteComponent() {
 							return <div key={`empty-${idx}`} className="aspect-square" />;
 						}
 
-						const data = dailyData[day];
-						const isGoal = isGoalMet(data.calories, data.goal);
-						const progress = getProgressPercentage(data.calories, data.goal);
+						const stats = dailyData[day];
+						const hasData = stats && stats.calories > 0;
+						const isGoal = hasData && isCalorieGoalMet(stats.calories);
 
 						return (
-							<div
+							<button
+								type="button"
 								key={day}
-								className={`aspect-square p-2 rounded-lg border transition-all ${
+								onClick={() => handleDayClick(day)}
+								className={`aspect-square p-1 rounded-lg border transition-all cursor-pointer hover:opacity-80 ${
 									isGoal
 										? "bg-accent border-accent text-white"
-										: "bg-secondary border-border text-foreground"
+										: hasData
+											? "bg-secondary border-border text-foreground"
+											: "bg-card border-border text-foreground hover:bg-secondary"
 								}`}
 							>
-								<div className="flex flex-col items-center justify-center h-full gap-0.5">
+								<div className="flex flex-col items-center justify-center h-full gap-0">
 									<span className="font-bold text-sm">{day}</span>
-									<span
-										className={`text-xs ${isGoal ? "text-green-100" : "text-muted-foreground"}`}
-									>
-										{data.calories}
-									</span>
+									{hasData ? (
+										<>
+											<span
+												className={`text-xs ${isGoal ? "text-green-100" : "text-blue-500"}`}
+											>
+												{stats.calories}
+											</span>
+											<span
+												className={`text-xs ${isGoal ? "text-green-100" : "text-emerald-500"}`}
+											>
+												{stats.protein}g
+											</span>
+										</>
+									) : (
+										<span className="text-xs text-muted-foreground">-</span>
+									)}
 								</div>
-							</div>
+							</button>
 						);
 					})}
 				</div>
 
 				<div className="mt-6 pt-6 border-t border-border">
-					<div className="grid grid-cols-3 gap-4">
+					<div className="grid grid-cols-4 gap-4">
 						<div className="bg-secondary p-4 rounded-lg">
-							<p className="text-sm text-muted-foreground mb-1">
-								Average Intake
+							<p className="text-sm text-muted-foreground mb-1">Avg Calories</p>
+							<p className="text-2xl font-bold text-blue-500">
+								{Object.keys(dailyData).length > 0
+									? Math.round(
+											Object.values(dailyData).reduce(
+												(sum, d) => sum + d.calories,
+												0,
+											) / Object.keys(dailyData).length,
+										)
+									: 0}
 							</p>
-							<p className="text-2xl font-bold text-foreground">
-								{Math.round(
-									Object.values(dailyData).reduce(
-										(sum, d) => sum + d.calories,
-										0,
-									) / Object.keys(dailyData).length,
-								)}
+						</div>
+						<div className="bg-secondary p-4 rounded-lg">
+							<p className="text-sm text-muted-foreground mb-1">Avg Protein</p>
+							<p className="text-2xl font-bold text-emerald-500">
+								{Object.keys(dailyData).length > 0
+									? Math.round(
+											Object.values(dailyData).reduce(
+												(sum, d) => sum + d.protein,
+												0,
+											) / Object.keys(dailyData).length,
+										)
+									: 0}
+								g
 							</p>
 						</div>
 						<div className="bg-secondary p-4 rounded-lg">
 							<p className="text-sm text-muted-foreground mb-1">Days on Goal</p>
-							<p className="text-2xl font-bold text-accent">
+							<p className="text-2xl font-bold text-accent text-black">
 								{
 									Object.values(dailyData).filter((d) =>
-										isGoalMet(d.calories, d.goal),
+										isCalorieGoalMet(d.calories),
 									).length
 								}
 							</p>
 						</div>
 						<div className="bg-secondary p-4 rounded-lg">
-							<p className="text-sm text-muted-foreground mb-1">Consistency</p>
+							<p className="text-sm text-muted-foreground mb-1">Days Tracked</p>
 							<p className="text-2xl font-bold text-foreground">
-								{Math.round(
-									(Object.values(dailyData).filter((d) =>
-										isGoalMet(d.calories, d.goal),
-									).length /
-										Object.keys(dailyData).length) *
-										100,
-								)}
-								%
+								{Object.keys(dailyData).length}
 							</p>
 						</div>
 					</div>

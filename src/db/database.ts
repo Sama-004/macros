@@ -25,6 +25,39 @@ const migrations: Migration[] = [
 		name: "add_grams_to_products",
 		sql: "ALTER TABLE products ADD COLUMN grams REAL NOT NULL DEFAULT 100",
 	},
+	{
+		id: 2,
+		name: "create_meals_table",
+		sql: `CREATE TABLE IF NOT EXISTS meals (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			date TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+	},
+	{
+		id: 3,
+		name: "create_meal_items_table",
+		sql: `CREATE TABLE IF NOT EXISTS meal_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			meal_id INTEGER NOT NULL,
+			product_id INTEGER NOT NULL,
+			grams REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
+			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+		)`,
+	},
+	{
+		id: 4,
+		name: "create_meals_indexes",
+		sql: "CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date)",
+	},
+	{
+		id: 5,
+		name: "create_meal_items_indexes",
+		sql: "CREATE INDEX IF NOT EXISTS idx_meal_items_meal_id ON meal_items(meal_id)",
+	},
 ];
 
 async function runMigrations(database: ReturnType<typeof createClient>) {
@@ -87,7 +120,26 @@ async function initDatabase() {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
+		`CREATE TABLE IF NOT EXISTS meals (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			date TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS meal_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			meal_id INTEGER NOT NULL,
+			product_id INTEGER NOT NULL,
+			grams REAL NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (meal_id) REFERENCES meals(id) ON DELETE CASCADE,
+			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+		)`,
+
 		`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+		`CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date)`,
+		`CREATE INDEX IF NOT EXISTS idx_meal_items_meal_id ON meal_items(meal_id)`,
 	];
 
 	for (const statement of schemaStatements) {

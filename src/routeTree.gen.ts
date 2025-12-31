@@ -15,6 +15,7 @@ import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as SidebarSettingsRouteImport } from './routes/_sidebar/settings'
 import { Route as SidebarHomeRouteImport } from './routes/_sidebar/home'
+import { Route as SidebarHistoryRouteImport } from './routes/_sidebar/history'
 import { Route as SidebarCalendarRouteImport } from './routes/_sidebar/calendar'
 import { Route as SidebarAddProductRouteImport } from './routes/_sidebar/add-product'
 
@@ -47,6 +48,11 @@ const SidebarHomeRoute = SidebarHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => SidebarRoute,
 } as any)
+const SidebarHistoryRoute = SidebarHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => SidebarRoute,
+} as any)
 const SidebarCalendarRoute = SidebarCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -62,6 +68,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add-product': typeof SidebarAddProductRoute
   '/calendar': typeof SidebarCalendarRoute
+  '/history': typeof SidebarHistoryRoute
   '/home': typeof SidebarHomeRoute
   '/settings': typeof SidebarSettingsRoute
   '/auth/login': typeof AuthLoginRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add-product': typeof SidebarAddProductRoute
   '/calendar': typeof SidebarCalendarRoute
+  '/history': typeof SidebarHistoryRoute
   '/home': typeof SidebarHomeRoute
   '/settings': typeof SidebarSettingsRoute
   '/auth/login': typeof AuthLoginRoute
@@ -82,6 +90,7 @@ export interface FileRoutesById {
   '/_sidebar': typeof SidebarRouteWithChildren
   '/_sidebar/add-product': typeof SidebarAddProductRoute
   '/_sidebar/calendar': typeof SidebarCalendarRoute
+  '/_sidebar/history': typeof SidebarHistoryRoute
   '/_sidebar/home': typeof SidebarHomeRoute
   '/_sidebar/settings': typeof SidebarSettingsRoute
   '/auth/login': typeof AuthLoginRoute
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
     | '/'
     | '/add-product'
     | '/calendar'
+    | '/history'
     | '/home'
     | '/settings'
     | '/auth/login'
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
     | '/'
     | '/add-product'
     | '/calendar'
+    | '/history'
     | '/home'
     | '/settings'
     | '/auth/login'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/_sidebar'
     | '/_sidebar/add-product'
     | '/_sidebar/calendar'
+    | '/_sidebar/history'
     | '/_sidebar/home'
     | '/_sidebar/settings'
     | '/auth/login'
@@ -169,6 +181,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SidebarHomeRouteImport
       parentRoute: typeof SidebarRoute
     }
+    '/_sidebar/history': {
+      id: '/_sidebar/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof SidebarHistoryRouteImport
+      parentRoute: typeof SidebarRoute
+    }
     '/_sidebar/calendar': {
       id: '/_sidebar/calendar'
       path: '/calendar'
@@ -189,6 +208,7 @@ declare module '@tanstack/react-router' {
 interface SidebarRouteChildren {
   SidebarAddProductRoute: typeof SidebarAddProductRoute
   SidebarCalendarRoute: typeof SidebarCalendarRoute
+  SidebarHistoryRoute: typeof SidebarHistoryRoute
   SidebarHomeRoute: typeof SidebarHomeRoute
   SidebarSettingsRoute: typeof SidebarSettingsRoute
 }
@@ -196,6 +216,7 @@ interface SidebarRouteChildren {
 const SidebarRouteChildren: SidebarRouteChildren = {
   SidebarAddProductRoute: SidebarAddProductRoute,
   SidebarCalendarRoute: SidebarCalendarRoute,
+  SidebarHistoryRoute: SidebarHistoryRoute,
   SidebarHomeRoute: SidebarHomeRoute,
   SidebarSettingsRoute: SidebarSettingsRoute,
 }

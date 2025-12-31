@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --bun vite dev --port 3000",
-    "start": "bun run server.ts",
-    "build": "vite build",
+    "start": "bun .output/server/index.mjs",
+    "build": "bun --bun vite build",
     "serve": "bun --bun vite preview",
     "test": "bun --bun vitest run",
     "format": "biome format",

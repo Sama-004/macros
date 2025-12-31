@@ -13,6 +13,57 @@ function getDb() {
 	return dbInstance;
 }
 
+type Migration = {
+	id: number;
+	name: string;
+	sql: string;
+};
+
+const migrations: Migration[] = [
+	{
+		id: 1,
+		name: "add_grams_to_products",
+		sql: "ALTER TABLE products ADD COLUMN grams REAL NOT NULL DEFAULT 100",
+	},
+];
+
+async function runMigrations(database: ReturnType<typeof createClient>) {
+	await database.execute(`
+		CREATE TABLE IF NOT EXISTS migrations (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	const applied = await database.execute("SELECT id FROM migrations");
+	const appliedIds = new Set(applied.rows.map((row) => row.id));
+
+	for (const migration of migrations) {
+		if (appliedIds.has(migration.id)) continue;
+
+		try {
+			await database.execute(migration.sql);
+			await database.execute({
+				sql: "INSERT INTO migrations (id, name) VALUES (?, ?)",
+				args: [migration.id, migration.name],
+			});
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				error.message.includes("duplicate column")
+			) {
+				await database.execute({
+					sql: "INSERT INTO migrations (id, name) VALUES (?, ?)",
+					args: [migration.id, migration.name],
+				});
+			} else {
+				throw error;
+			}
+		}
+	}
+}
+
 async function initDatabase() {
 	if (initialized) return;
 
@@ -28,6 +79,7 @@ async function initDatabase() {
 		`CREATE TABLE IF NOT EXISTS products (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
+			grams REAL NOT NULL DEFAULT 100,
 			calories REAL NOT NULL,
 			protein REAL NOT NULL,
 			carbs REAL NOT NULL,
@@ -41,6 +93,8 @@ async function initDatabase() {
 	for (const statement of schemaStatements) {
 		await database.execute(statement);
 	}
+
+	await runMigrations(database);
 
 	initialized = true;
 }

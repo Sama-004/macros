@@ -6,6 +6,7 @@ import { db } from "@/db/database";
 type Product = {
 	id: number;
 	name: string;
+	grams: number;
 	calories: number;
 	protein: number;
 	carbs: number;
@@ -23,6 +24,7 @@ const addProduct = createServerFn({ method: "POST" })
 	.inputValidator(
 		(data: {
 			name: string;
+			grams: number;
 			calories: number;
 			protein: number;
 			carbs: number;
@@ -31,8 +33,8 @@ const addProduct = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		await db.execute({
-			sql: "INSERT INTO products (name, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?)",
-			args: [data.name, data.calories, data.protein, data.carbs, data.fats],
+			sql: "INSERT INTO products (name, grams, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?)",
+			args: [data.name, data.grams, data.calories, data.protein, data.carbs, data.fats],
 		});
 	});
 
@@ -81,6 +83,7 @@ function RouteComponent() {
 		await addProduct({
 			data: {
 				name: formData.name.trim(),
+				grams: Number(formData.grams) || 100,
 				calories: Number.parseFloat(formData.calories) || 0,
 				protein: Number.parseFloat(formData.protein) || 0,
 				carbs: Number.parseFloat(formData.carbs) || 0,
@@ -204,6 +207,9 @@ function RouteComponent() {
 									{product.name}
 								</h3>
 								<div className="flex items-center gap-3">
+									<span className="text-sm text-muted-foreground">
+										{product.grams}g
+									</span>
 									<span className="text-sm font-medium text-blue-600">
 										{product.calories} kcal
 									</span>

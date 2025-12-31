@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun --bun vite dev --port 3000",
     "start": "bun run server.ts",
-    "build": "bun run build",
+    "build": "vite build",
     "serve": "bun --bun vite preview",
     "test": "bun --bun vitest run",
     "format": "biome format",

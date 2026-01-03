@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { generateObject } from "ai";
 import { useState } from "react";
+import { z } from "zod";
 import { db } from "@/db/database";
+import { google } from "@ai-sdk/google";
 
 type Product = {
 	id: number;
 	name: string;
+	quantity: number | null;
 	grams: number;
 	calories: number;
 	protein: number;
@@ -24,6 +28,7 @@ const addProduct = createServerFn({ method: "POST" })
 	.inputValidator(
 		(data: {
 			name: string;
+			quantity: number;
 			grams: number;
 			calories: number;
 			protein: number;
@@ -33,8 +38,16 @@ const addProduct = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		await db.execute({
-			sql: "INSERT INTO products (name, grams, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?)",
-			args: [data.name, data.grams, data.calories, data.protein, data.carbs, data.fats],
+			sql: "INSERT INTO products (name, quantity, grams, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			args: [
+				data.name,
+				data.quantity,
+				data.grams,
+				data.calories,
+				data.protein,
+				data.carbs,
+				data.fats,
+			],
 		});
 	});
 
@@ -47,6 +60,37 @@ const deleteProduct = createServerFn({ method: "POST" })
 		});
 	});
 
+const productSchema = z.object({
+	name: z.string().describe("The name of the food product"),
+	quantity: z
+		.number()
+		.describe("The quantity/number of items (e.g., 2 for '2 eggs')"),
+	grams: z.number().describe("Total weight in grams for all items"),
+	calories: z.number().describe("Total calories for all items"),
+	protein: z.number().describe("Total protein in grams for all items"),
+	carbs: z.number().describe("Total carbohydrates in grams for all items"),
+	fats: z.number().describe("Total fats in grams for all items"),
+});
+
+const generateProductMacros = createServerFn({ method: "POST" })
+	.inputValidator((data: { message: string }) => data)
+	.handler(async ({ data }) => {
+		console.log("data message", data.message);
+		const { object } = await generateObject({
+			model: google("gemini-flash-latest"),
+			schema: productSchema,
+			prompt: `Generate accurate nutritional information for: "${data.message}"
+
+			Important:
+			- If the user specifies a quantity (e.g., "2 eggs", "3 slices of bread"), use that quantity
+			- If no quantity is specified, assume 1
+			- Provide realistic macro values based on standard food databases
+			- All values should be for the total quantity specified`,
+		});
+		console.log("object", object);
+		return object;
+	});
+
 export const Route = createFileRoute("/_sidebar/add-product")({
 	component: RouteComponent,
 	loader: () => getProducts(),
@@ -57,6 +101,7 @@ function RouteComponent() {
 	const [products, setProducts] = useState(initialProducts);
 	const [formData, setFormData] = useState({
 		name: "",
+		quantity: 1,
 		grams: 100,
 		calories: "",
 		protein: "",
@@ -64,10 +109,37 @@ function RouteComponent() {
 		fats: "",
 	});
 	const [showForm, setShowForm] = useState(false);
+	const [aiPrompt, setAiPrompt] = useState("");
+	const [isGenerating, setIsGenerating] = useState(false);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value } = e.target;
 		setFormData((prev) => ({ ...prev, [name]: value }));
+	};
+
+	const handleGenerateMacros = async () => {
+		if (!aiPrompt.trim() || isGenerating) return;
+		setIsGenerating(true);
+		try {
+			const result = await generateProductMacros({
+				data: { message: aiPrompt.trim() },
+			});
+			setFormData({
+				name: result.name,
+				quantity: result.quantity,
+				grams: result.grams,
+				calories: String(result.calories),
+				protein: String(result.protein),
+				carbs: String(result.carbs),
+				fats: String(result.fats),
+			});
+			setShowForm(true);
+			setAiPrompt("");
+		} catch (error) {
+			console.error("Failed to generate macros:", error);
+		} finally {
+			setIsGenerating(false);
+		}
 	};
 
 	const handleDeleteProduct = async (id: number) => {
@@ -80,20 +152,30 @@ function RouteComponent() {
 		if (!formData.name.trim()) {
 			return;
 		}
+		const qty = Number(formData.quantity) || 1;
+		const totalGrams = Number(formData.grams) || 100;
+		const totalCalories = Number.parseFloat(formData.calories) || 0;
+		const totalProtein = Number.parseFloat(formData.protein) || 0;
+		const totalCarbs = Number.parseFloat(formData.carbs) || 0;
+		const totalFats = Number.parseFloat(formData.fats) || 0;
+
+		// Store per-unit values (divide by quantity) and keep quantity for display
 		await addProduct({
 			data: {
 				name: formData.name.trim(),
-				grams: Number(formData.grams) || 100,
-				calories: Number.parseFloat(formData.calories) || 0,
-				protein: Number.parseFloat(formData.protein) || 0,
-				carbs: Number.parseFloat(formData.carbs) || 0,
-				fats: Number.parseFloat(formData.fats) || 0,
+				quantity: qty,
+				grams: Math.round((totalGrams / qty) * 10) / 10,
+				calories: Math.round((totalCalories / qty) * 10) / 10,
+				protein: Math.round((totalProtein / qty) * 100) / 100,
+				carbs: Math.round((totalCarbs / qty) * 100) / 100,
+				fats: Math.round((totalFats / qty) * 100) / 100,
 			},
 		});
 		const updated = await getProducts();
 		setProducts(updated);
 		setFormData({
 			name: "",
+			quantity: 1,
 			grams: 100,
 			calories: "",
 			protein: "",
@@ -112,32 +194,81 @@ function RouteComponent() {
 				</p>
 			</div>
 
+			<div className="bg-card p-4 rounded-lg border border-border mb-6">
+				<label className="text-sm text-muted-foreground mb-2 block">
+					Generate with AI
+				</label>
+				<div className="flex gap-3">
+					<input
+						type="text"
+						placeholder="Describe a food (e.g., '2 eggs', '100g chicken breast')"
+						value={aiPrompt}
+						onChange={(e) => setAiPrompt(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								handleGenerateMacros();
+							}
+						}}
+						className="flex-1 px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
+						disabled={isGenerating}
+					/>
+					<button
+						type="button"
+						onClick={handleGenerateMacros}
+						disabled={isGenerating || !aiPrompt.trim()}
+						className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{isGenerating ? "Generating..." : "Generate"}
+					</button>
+				</div>
+			</div>
+
 			{showForm && (
 				<form
 					onSubmit={handleAddProduct}
 					className="bg-card p-6 rounded-lg border border-border mb-6"
 				>
-					<div className="grid grid-cols-2 gap-4 mb-4">
+					<div className="grid grid-cols-3 gap-4 mb-4">
 						<input
 							type="text"
 							name="name"
-							placeholder="Product name"
+							placeholder="Product name (e.g., Egg)"
 							value={formData.name}
 							onChange={handleInputChange}
+							className="col-span-3 px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
+						/>
+						<input
+							type="number"
+							name="quantity"
+							placeholder="Quantity"
+							value={formData.quantity}
+							onChange={handleInputChange}
+							min={1}
+							step={1}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
 						/>
 						<input
 							type="number"
 							name="grams"
-							placeholder="Grams"
+							placeholder="Total grams"
 							value={formData.grams}
 							onChange={handleInputChange}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
 						/>
+						<div className="px-4 py-2 rounded-lg bg-muted text-muted-foreground text-sm flex items-center">
+							={" "}
+							{Math.round(
+								((Number(formData.grams) || 0) /
+									(Number(formData.quantity) || 1)) *
+									10,
+							) / 10}
+							g per unit
+						</div>
 						<input
 							type="number"
 							name="calories"
-							placeholder="Calories (per 100g)"
+							placeholder="Total calories"
 							value={formData.calories}
 							onChange={handleInputChange}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
@@ -145,7 +276,7 @@ function RouteComponent() {
 						<input
 							type="number"
 							name="protein"
-							placeholder="Protein (g)"
+							placeholder="Total protein (g)"
 							value={formData.protein}
 							onChange={handleInputChange}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
@@ -153,7 +284,7 @@ function RouteComponent() {
 						<input
 							type="number"
 							name="carbs"
-							placeholder="Carbs (g)"
+							placeholder="Total carbs (g)"
 							value={formData.carbs}
 							onChange={handleInputChange}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
@@ -161,11 +292,12 @@ function RouteComponent() {
 						<input
 							type="number"
 							name="fats"
-							placeholder="Fats (g)"
+							placeholder="Total fats (g)"
 							value={formData.fats}
 							onChange={handleInputChange}
 							className="px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
 						/>
+						<div />
 					</div>
 					<div className="flex gap-3">
 						<button
@@ -205,6 +337,11 @@ function RouteComponent() {
 							<div className="flex justify-between items-start mb-2">
 								<h3 className="font-semibold text-foreground">
 									{product.name}
+									{product.quantity && product.quantity > 1 && (
+										<span className="ml-2 text-sm font-normal text-muted-foreground">
+											(per unit of {product.quantity})
+										</span>
+									)}
 								</h3>
 								<div className="flex items-center gap-3">
 									<span className="text-sm text-muted-foreground">

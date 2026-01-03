@@ -8,6 +8,7 @@ import { db } from "@/db/database";
 type Product = {
 	id: number;
 	name: string;
+	quantity: number | null;
 	grams: number;
 	calories: number;
 	protein: number;
@@ -145,6 +146,8 @@ function RouteComponent() {
 	const [addingToMeal, setAddingToMeal] = useState<number | null>(null);
 	const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
 	const [itemGrams, setItemGrams] = useState(100);
+	const [inputMode, setInputMode] = useState<"grams" | "quantity">("grams");
+	const [itemQuantity, setItemQuantity] = useState(1);
 
 	const totalStats = meals.reduce(
 		(acc, meal) => {
@@ -179,15 +182,29 @@ function RouteComponent() {
 	};
 
 	const handleAddItem = async (mealId: number) => {
-		if (!selectedProduct || itemGrams <= 0) return;
+		if (!selectedProduct) return;
+
+		let grams: number;
+		if (inputMode === "quantity") {
+			if (itemQuantity <= 0) return;
+			const product = products.find((p) => p.id === selectedProduct);
+			if (!product) return;
+			grams = itemQuantity * product.grams;
+		} else {
+			if (itemGrams <= 0) return;
+			grams = itemGrams;
+		}
+
 		await addMealItem({
-			data: { mealId, productId: selectedProduct, grams: itemGrams },
+			data: { mealId, productId: selectedProduct, grams },
 		});
 		const updated = await getTodaysMeals();
 		setMeals(updated);
 		setAddingToMeal(null);
 		setSelectedProduct(null);
 		setItemGrams(100);
+		setItemQuantity(1);
+		setInputMode("grams");
 	};
 
 	const handleRemoveItem = async (itemId: number) => {
@@ -306,14 +323,44 @@ function RouteComponent() {
 												))}
 											</select>
 										</div>
+										<div className="flex gap-2">
+											<button
+												type="button"
+												onClick={() => setInputMode("grams")}
+												className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+													inputMode === "grams"
+														? "bg-accent text-accent-foreground"
+														: "bg-secondary text-muted-foreground hover:text-foreground"
+												}`}
+											>
+												Grams
+											</button>
+											<button
+												type="button"
+												onClick={() => setInputMode("quantity")}
+												className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+													inputMode === "quantity"
+														? "bg-accent text-accent-foreground"
+														: "bg-secondary text-muted-foreground hover:text-foreground"
+												}`}
+											>
+												Qty
+											</button>
+										</div>
 										<div className="w-24">
 											<label className="text-sm text-muted-foreground mb-1 block">
-												Grams
+												{inputMode === "grams" ? "Grams" : "Quantity"}
 											</label>
 											<input
 												type="number"
-												value={itemGrams}
-												onChange={(e) => setItemGrams(Number(e.target.value))}
+												value={inputMode === "grams" ? itemGrams : itemQuantity}
+												onChange={(e) =>
+													inputMode === "grams"
+														? setItemGrams(Number(e.target.value))
+														: setItemQuantity(Number(e.target.value))
+												}
+												min={inputMode === "grams" ? 1 : 0.5}
+												step={inputMode === "grams" ? 1 : 0.5}
 												className="w-full px-3 py-2 rounded-lg bg-secondary text-foreground border border-border"
 											/>
 										</div>
@@ -330,6 +377,8 @@ function RouteComponent() {
 												setAddingToMeal(null);
 												setSelectedProduct(null);
 												setItemGrams(100);
+												setItemQuantity(1);
+												setInputMode("grams");
 											}}
 											className="px-4 py-2 bg-secondary text-foreground rounded-lg font-medium"
 										>

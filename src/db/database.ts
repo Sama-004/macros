@@ -58,6 +58,11 @@ const migrations: Migration[] = [
 		name: "create_meal_items_indexes",
 		sql: "CREATE INDEX IF NOT EXISTS idx_meal_items_meal_id ON meal_items(meal_id)",
 	},
+	{
+		id: 6,
+		name: "add_quantity_to_products",
+		sql: "ALTER TABLE products ADD COLUMN quantity REAL DEFAULT 1",
+	},
 ];
 
 async function runMigrations(database: ReturnType<typeof createClient>) {

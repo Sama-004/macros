@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import MacroProgress from "@/components/macro-progress";
 import MealCard from "@/components/meal-card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { db } from "@/db/database";
 
 type Product = {
@@ -39,63 +42,61 @@ const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 	return result.rows as unknown as Product[];
 });
 
-const getTodaysMeals = createServerFn({ method: "GET" }).handler(async () => {
+const getTodaysMeal = createServerFn({ method: "GET" }).handler(async () => {
 	const today = getToday();
 
-	const mealsResult = await db.execute({
-		sql: "SELECT * FROM meals WHERE date = ? ORDER BY created_at ASC",
+	// Check if a meal exists for today, if not create one
+	let mealsResult = await db.execute({
+		sql: "SELECT * FROM meals WHERE date = ? LIMIT 1",
 		args: [today],
 	});
 
-	const meals: Meal[] = [];
-
-	for (const mealRow of mealsResult.rows) {
-		const itemsResult = await db.execute({
-			sql: `SELECT mi.id, mi.grams as consumed_grams, p.name as product,
-					p.grams as product_grams, p.calories, p.protein, p.carbs, p.fats
-				  FROM meal_items mi
-				  JOIN products p ON mi.product_id = p.id
-				  WHERE mi.meal_id = ?
-				  ORDER BY mi.created_at ASC`,
-			args: [mealRow.id as number],
+	if (mealsResult.rows.length === 0) {
+		// Auto-create today's meal
+		await db.execute({
+			sql: "INSERT INTO meals (name, date) VALUES (?, ?)",
+			args: ["Daily Log", today],
 		});
-
-		const items: MealItem[] = itemsResult.rows.map((row) => {
-			const consumedGrams = row.consumed_grams as number;
-			const productGrams = row.product_grams as number;
-			const ratio = consumedGrams / productGrams;
-
-			return {
-				id: row.id as number,
-				product: row.product as string,
-				grams: consumedGrams,
-				calories: Math.round((row.calories as number) * ratio),
-				protein: Math.round((row.protein as number) * ratio * 10) / 10,
-				carbs: Math.round((row.carbs as number) * ratio * 10) / 10,
-				fats: Math.round((row.fats as number) * ratio * 10) / 10,
-			};
-		});
-
-		meals.push({
-			id: mealRow.id as number,
-			name: mealRow.name as string,
-			items,
+		mealsResult = await db.execute({
+			sql: "SELECT * FROM meals WHERE date = ? LIMIT 1",
+			args: [today],
 		});
 	}
 
-	return meals;
-});
+	const mealRow = mealsResult.rows[0];
 
-const addMeal = createServerFn({ method: "POST" })
-	.inputValidator((data: { name: string }) => data)
-	.handler(async ({ data }) => {
-		const today = getToday();
-		const result = await db.execute({
-			sql: "INSERT INTO meals (name, date) VALUES (?, ?) RETURNING id",
-			args: [data.name, today],
-		});
-		return result.rows[0].id as number;
+	const itemsResult = await db.execute({
+		sql: `SELECT mi.id, mi.grams as consumed_grams, p.name as product,
+				p.grams as product_grams, p.calories, p.protein, p.carbs, p.fats
+			  FROM meal_items mi
+			  JOIN products p ON mi.product_id = p.id
+			  WHERE mi.meal_id = ?
+			  ORDER BY mi.created_at ASC`,
+		args: [mealRow.id as number],
 	});
+
+	const items: MealItem[] = itemsResult.rows.map((row) => {
+		const consumedGrams = row.consumed_grams as number;
+		const productGrams = row.product_grams as number;
+		const ratio = consumedGrams / productGrams;
+
+		return {
+			id: row.id as number,
+			product: row.product as string,
+			grams: consumedGrams,
+			calories: Math.round((row.calories as number) * ratio),
+			protein: Math.round((row.protein as number) * ratio * 10) / 10,
+			carbs: Math.round((row.carbs as number) * ratio * 10) / 10,
+			fats: Math.round((row.fats as number) * ratio * 10) / 10,
+		};
+	});
+
+	return {
+		id: mealRow.id as number,
+		name: mealRow.name as string,
+		items,
+	};
+});
 
 const addMealItem = createServerFn({ method: "POST" })
 	.inputValidator(
@@ -117,71 +118,40 @@ const removeMealItem = createServerFn({ method: "POST" })
 		});
 	});
 
-const deleteMeal = createServerFn({ method: "POST" })
-	.inputValidator((data: { mealId: number }) => data)
-	.handler(async ({ data }) => {
-		await db.execute({
-			sql: "DELETE FROM meals WHERE id = ?",
-			args: [data.mealId],
-		});
-	});
-
 export const Route = createFileRoute("/_sidebar/home")({
 	component: RouteComponent,
 	loader: async () => {
-		const [meals, products] = await Promise.all([
-			getTodaysMeals(),
+		const [meal, products] = await Promise.all([
+			getTodaysMeal(),
 			getProducts(),
 		]);
-		return { meals, products };
+		return { meal, products };
 	},
 });
 
 function RouteComponent() {
 	const loaderData = Route.useLoaderData();
-	const [meals, setMeals] = useState<Meal[]>(loaderData.meals);
+	const [meal, setMeal] = useState<Meal>(loaderData.meal);
 	const [products] = useState<Product[]>(loaderData.products);
-	const [showAddMeal, setShowAddMeal] = useState(false);
-	const [newMealName, setNewMealName] = useState("");
-	const [addingToMeal, setAddingToMeal] = useState<number | null>(null);
+	const [showAddItem, setShowAddItem] = useState(false);
 	const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
 	const [itemGrams, setItemGrams] = useState(100);
 	const [inputMode, setInputMode] = useState<"grams" | "quantity">("grams");
 	const [itemQuantity, setItemQuantity] = useState(1);
 
-	const totalStats = meals.reduce(
-		(acc, meal) => {
-			const mealTotals = meal.items.reduce(
-				(mealAcc, item) => ({
-					calories: mealAcc.calories + item.calories,
-					protein: mealAcc.protein + item.protein,
-					carbs: mealAcc.carbs + item.carbs,
-					fats: mealAcc.fats + item.fats,
-				}),
-				{ calories: 0, protein: 0, carbs: 0, fats: 0 },
-			);
-			return {
-				calories: acc.calories + mealTotals.calories,
-				protein: acc.protein + mealTotals.protein,
-				carbs: acc.carbs + mealTotals.carbs,
-				fats: acc.fats + mealTotals.fats,
-			};
-		},
+	const totalStats = meal.items.reduce(
+		(acc, item) => ({
+			calories: acc.calories + item.calories,
+			protein: acc.protein + item.protein,
+			carbs: acc.carbs + item.carbs,
+			fats: acc.fats + item.fats,
+		}),
 		{ calories: 0, protein: 0, carbs: 0, fats: 0 },
 	);
 
 	const goals = { calories: 2000, protein: 150, carbs: 200, fats: 65 };
 
-	const handleAddMeal = async () => {
-		if (!newMealName.trim()) return;
-		await addMeal({ data: { name: newMealName.trim() } });
-		const updated = await getTodaysMeals();
-		setMeals(updated);
-		setNewMealName("");
-		setShowAddMeal(false);
-	};
-
-	const handleAddItem = async (mealId: number) => {
+	const handleAddItem = async () => {
 		if (!selectedProduct) return;
 
 		let grams: number;
@@ -196,11 +166,11 @@ function RouteComponent() {
 		}
 
 		await addMealItem({
-			data: { mealId, productId: selectedProduct, grams },
+			data: { mealId: meal.id, productId: selectedProduct, grams },
 		});
-		const updated = await getTodaysMeals();
-		setMeals(updated);
-		setAddingToMeal(null);
+		const updated = await getTodaysMeal();
+		setMeal(updated);
+		setShowAddItem(false);
 		setSelectedProduct(null);
 		setItemGrams(100);
 		setItemQuantity(1);
@@ -209,14 +179,8 @@ function RouteComponent() {
 
 	const handleRemoveItem = async (itemId: number) => {
 		await removeMealItem({ data: { itemId } });
-		const updated = await getTodaysMeals();
-		setMeals(updated);
-	};
-
-	const handleDeleteMeal = async (mealId: number) => {
-		await deleteMeal({ data: { mealId } });
-		const updated = await getTodaysMeals();
-		setMeals(updated);
+		const updated = await getTodaysMeal();
+		setMeal(updated);
 	};
 
 	return (
@@ -274,175 +238,103 @@ function RouteComponent() {
 			</div>
 
 			<div className="flex-1 overflow-auto p-8">
-				<div className="space-y-6">
-					{meals.map((meal) => (
-						<div key={meal.id}>
-							<div className="flex items-center justify-between mb-3">
-								<h3 className="text-lg font-semibold text-foreground">
-									{meal.name}
-								</h3>
-								<div className="flex gap-2">
-									<button
-										type="button"
-										onClick={() =>
-											setAddingToMeal(addingToMeal === meal.id ? null : meal.id)
-										}
-										className="text-sm text-accent hover:underline text-black"
-									>
-										+ Add Item
-									</button>
-									<button
-										type="button"
-										onClick={() => handleDeleteMeal(meal.id)}
-										className="text-sm text-red-500 hover:underline"
-									>
-										Delete
-									</button>
-								</div>
-							</div>
-
-							{addingToMeal === meal.id && (
-								<div className="bg-card p-4 rounded-lg border border-border mb-3">
-									<div className="flex gap-3 items-end">
-										<div className="flex-1">
-											<label className="text-sm text-muted-foreground mb-1 block">
-												Product
-											</label>
-											<select
-												value={selectedProduct || ""}
-												onChange={(e) =>
-													setSelectedProduct(Number(e.target.value) || null)
-												}
-												className="w-full px-3 py-2 rounded-lg bg-secondary text-foreground border border-border"
-											>
-												<option value="">Select a product</option>
-												{products.map((p) => (
-													<option key={p.id} value={p.id}>
-														{p.name} ({p.grams}g = {p.calories} kcal)
-													</option>
-												))}
-											</select>
-										</div>
-										<div className="flex gap-2">
-											<button
-												type="button"
-												onClick={() => setInputMode("grams")}
-												className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-													inputMode === "grams"
-														? "bg-accent text-accent-foreground"
-														: "bg-secondary text-muted-foreground hover:text-foreground"
-												}`}
-											>
-												Grams
-											</button>
-											<button
-												type="button"
-												onClick={() => setInputMode("quantity")}
-												className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-													inputMode === "quantity"
-														? "bg-accent text-accent-foreground"
-														: "bg-secondary text-muted-foreground hover:text-foreground"
-												}`}
-											>
-												Qty
-											</button>
-										</div>
-										<div className="w-24">
-											<label className="text-sm text-muted-foreground mb-1 block">
-												{inputMode === "grams" ? "Grams" : "Quantity"}
-											</label>
-											<input
-												type="number"
-												value={inputMode === "grams" ? itemGrams : itemQuantity}
-												onChange={(e) =>
-													inputMode === "grams"
-														? setItemGrams(Number(e.target.value))
-														: setItemQuantity(Number(e.target.value))
-												}
-												min={inputMode === "grams" ? 1 : 0.5}
-												step={inputMode === "grams" ? 1 : 0.5}
-												className="w-full px-3 py-2 rounded-lg bg-secondary text-foreground border border-border"
-											/>
-										</div>
-										<button
-											type="button"
-											onClick={() => handleAddItem(meal.id)}
-											className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90"
-										>
-											Add
-										</button>
-										<button
-											type="button"
-											onClick={() => {
-												setAddingToMeal(null);
-												setSelectedProduct(null);
-												setItemGrams(100);
-												setItemQuantity(1);
-												setInputMode("grams");
-											}}
-											className="px-4 py-2 bg-secondary text-foreground rounded-lg font-medium"
-										>
-											Cancel
-										</button>
-									</div>
-								</div>
-							)}
-
-							<div className="space-y-3">
-								{meal.items.map((item) => (
-									<MealCard
-										key={item.id}
-										item={item}
-										onRemove={() => handleRemoveItem(item.id)}
-									/>
-								))}
-								{meal.items.length === 0 && (
-									<p className="text-sm text-muted-foreground italic">
-										No items yet. Click "+ Add Item" to add food.
-									</p>
-								)}
-							</div>
-						</div>
-					))}
-
-					{showAddMeal ? (
+				<div className="space-y-4">
+					{showAddItem ? (
 						<div className="bg-card p-4 rounded-lg border border-border">
-							<div className="flex gap-3">
-								<input
-									type="text"
-									placeholder="Meal name (e.g., Breakfast, Lunch)"
-									value={newMealName}
-									onChange={(e) => setNewMealName(e.target.value)}
-									className="flex-1 px-4 py-2 rounded-lg bg-secondary text-foreground placeholder-muted-foreground border border-border"
-								/>
-								<button
-									type="button"
-									onClick={handleAddMeal}
-									className="px-4 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90"
-								>
-									Add Meal
-								</button>
-								<button
-									type="button"
+							<div className="flex gap-3 items-end">
+								<div className="flex-1">
+									<label className="text-sm font-medium text-foreground mb-2 block">
+										Product
+									</label>
+									<select
+										value={selectedProduct || ""}
+										onChange={(e) =>
+											setSelectedProduct(Number(e.target.value) || null)
+										}
+										className="w-full h-9 px-3 rounded-md bg-secondary text-foreground border border-input"
+									>
+										<option value="">Select a product</option>
+										{products.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.name} ({p.grams}g = {p.calories} kcal)
+											</option>
+										))}
+									</select>
+								</div>
+								<div className="flex gap-1">
+									<Button
+										type="button"
+										variant={inputMode === "grams" ? "default" : "secondary"}
+										size="sm"
+										onClick={() => setInputMode("grams")}
+									>
+										Grams
+									</Button>
+									<Button
+										type="button"
+										variant={inputMode === "quantity" ? "default" : "secondary"}
+										size="sm"
+										onClick={() => setInputMode("quantity")}
+									>
+										Qty
+									</Button>
+								</div>
+								<div className="w-24">
+									<label className="text-sm font-medium text-foreground mb-2 block">
+										{inputMode === "grams" ? "Grams" : "Quantity"}
+									</label>
+									<Input
+										type="number"
+										value={inputMode === "grams" ? itemGrams : itemQuantity}
+										onChange={(e) =>
+											inputMode === "grams"
+												? setItemGrams(Number(e.target.value))
+												: setItemQuantity(Number(e.target.value))
+										}
+										min={inputMode === "grams" ? 1 : 0.5}
+										step={inputMode === "grams" ? 1 : 0.5}
+									/>
+								</div>
+								<Button onClick={handleAddItem}>Add</Button>
+								<Button
+									variant="secondary"
 									onClick={() => {
-										setShowAddMeal(false);
-										setNewMealName("");
+										setShowAddItem(false);
+										setSelectedProduct(null);
+										setItemGrams(100);
+										setItemQuantity(1);
+										setInputMode("grams");
 									}}
-									className="px-4 py-2 bg-secondary text-foreground rounded-lg font-medium"
 								>
 									Cancel
-								</button>
+								</Button>
 							</div>
 						</div>
 					) : (
-						<button
-							type="button"
-							onClick={() => setShowAddMeal(true)}
-							className="w-full py-3 border-2 border-dashed border-border rounded-lg text-muted-foreground hover:border-accent hover:text-accent transition-colors"
+						<Button
+							variant="outline"
+							className="w-full border-2 border-dashed"
+							onClick={() => setShowAddItem(true)}
 						>
-							+ Add Meal
-						</button>
+							<Plus className="size-4 mr-2" />
+							Add Item
+						</Button>
 					)}
+
+					<div className="space-y-3">
+						{meal.items.map((item) => (
+							<MealCard
+								key={item.id}
+								item={item}
+								onRemove={() => handleRemoveItem(item.id)}
+							/>
+						))}
+						{meal.items.length === 0 && (
+							<p className="text-sm text-muted-foreground italic text-center py-8">
+								No items yet. Add your first food item above.
+							</p>
+						)}
+					</div>
 				</div>
 			</div>
 		</div>

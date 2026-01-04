@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "@/db/database";
 import { useAppSession, type User } from "./session";
+import bcrypt from "bcryptjs";
+import { argon2Verify } from "hash-wasm";
 
 // User registration
 export const registerFn = createServerFn({ method: "POST" })
@@ -33,8 +35,8 @@ export const registerFn = createServerFn({ method: "POST" })
 			return { error: "Username already taken" };
 		}
 
-		// Hash password with Bun
-		const hashedPassword = await Bun.password.hash(password);
+		// Hash password with bcrypt
+		const hashedPassword = await bcrypt.hash(password, 10);
 
 		// Create user
 		const user = await createUser({
@@ -124,7 +126,27 @@ async function authenticateUser(username: string, password: string) {
 	const user = await getUserByUsername(username);
 	if (!user) return null;
 
-	const isValid = await Bun.password.verify(password, user.password as string);
+	const storedHash = user.password as string;
+	let isValid = false;
+
+	// Check if this is an argon2 hash (from previous Bun.password.hash)
+	if (storedHash.startsWith("$argon2")) {
+		// Verify with argon2
+		isValid = await argon2Verify({ hash: storedHash, password });
+
+		// If valid, migrate to bcrypt for future logins
+		if (isValid) {
+			const newHash = await bcrypt.hash(password, 10);
+			await db.execute({
+				sql: "UPDATE users SET password = ? WHERE id = ?",
+				args: [newHash, user.id],
+			});
+		}
+	} else {
+		// Verify with bcrypt
+		isValid = await bcrypt.compare(password, storedHash);
+	}
+
 	return isValid
 		? { id: user.id as number, username: user.username as string }
 		: null;

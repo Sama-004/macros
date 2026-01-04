@@ -177,9 +177,9 @@ function RouteComponent() {
 								onClick={() => handleDayClick(day)}
 								className={`aspect-square p-1 rounded-lg border transition-all cursor-pointer hover:opacity-80 ${
 									isGoal
-										? "bg-accent border-accent text-white"
+										? "bg-green-500 border-green-600 text-white"
 										: hasData
-											? "bg-secondary border-border text-foreground"
+											? "bg-red-500 border-red-600 text-white"
 											: "bg-card border-border text-foreground hover:bg-secondary"
 								}`}
 							>
@@ -187,14 +187,10 @@ function RouteComponent() {
 									<span className="font-bold text-sm">{day}</span>
 									{hasData ? (
 										<>
-											<span
-												className={`text-xs ${isGoal ? "text-green-100" : "text-blue-500"}`}
-											>
+											<span className="text-xs text-white/90">
 												{stats.calories}
 											</span>
-											<span
-												className={`text-xs ${isGoal ? "text-green-100" : "text-emerald-500"}`}
-											>
+											<span className="text-xs text-white/90">
 												{stats.protein}g
 											</span>
 										</>

@@ -1,12 +1,16 @@
-import { createClient, type InValue } from "@libsql/client";
+import { createClient, type InValue } from "@libsql/client/web";
 
 let dbInstance: ReturnType<typeof createClient> | null = null;
 let initialized = false;
 
 function getDb() {
 	if (!dbInstance) {
+		const url = process.env.DATABASE_URL;
+		if (!url) {
+			throw new Error("DATABASE_URL environment variable is required");
+		}
 		dbInstance = createClient({
-			url: process.env.DATABASE_URL ?? "file:database.db",
+			url,
 			authToken: process.env.DATABASE_AUTH_TOKEN,
 		});
 	}

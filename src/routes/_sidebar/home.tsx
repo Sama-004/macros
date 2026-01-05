@@ -7,6 +7,7 @@ import MealCard from "@/components/meal-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { db } from "@/db/database";
+import { getGoals } from "./settings";
 
 type Product = {
 	id: number;
@@ -121,11 +122,12 @@ const removeMealItem = createServerFn({ method: "POST" })
 export const Route = createFileRoute("/_sidebar/home")({
 	component: RouteComponent,
 	loader: async () => {
-		const [meal, products] = await Promise.all([
+		const [meal, products, goals] = await Promise.all([
 			getTodaysMeal(),
 			getProducts(),
+			getGoals(),
 		]);
-		return { meal, products };
+		return { meal, products, goals };
 	},
 });
 
@@ -149,7 +151,7 @@ function RouteComponent() {
 		{ calories: 0, protein: 0, carbs: 0, fats: 0 },
 	);
 
-	const goals = { calories: 2000, protein: 150, carbs: 200, fats: 65 };
+	const goals = loaderData.goals;
 
 	const handleAddItem = async () => {
 		if (!selectedProduct) return;

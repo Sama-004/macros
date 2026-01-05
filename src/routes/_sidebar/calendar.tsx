@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db/database";
+import { getGoals } from "./settings";
 
 type DailyData = {
 	date: string;
@@ -34,6 +35,10 @@ const getMonthlyData = createServerFn({ method: "GET" })
 
 export const Route = createFileRoute("/_sidebar/calendar")({
 	component: RouteComponent,
+	loader: async () => {
+		const goals = await getGoals();
+		return { goals };
+	},
 });
 
 type DayStats = {
@@ -43,10 +48,11 @@ type DayStats = {
 
 function RouteComponent() {
 	const navigate = useNavigate();
+	const loaderData = Route.useLoaderData();
 	const [currentDate, setCurrentDate] = useState(new Date());
 	const [dailyData, setDailyData] = useState<Record<number, DayStats>>({});
-	const calorieGoal = 2000;
-	const proteinGoal = 150;
+	const calorieGoal = loaderData.goals.calories;
+	const proteinGoal = loaderData.goals.protein;
 
 	const daysInMonth = (date: Date) =>
 		new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();

@@ -67,6 +67,19 @@ const migrations: Migration[] = [
 		name: "add_quantity_to_products",
 		sql: "ALTER TABLE products ADD COLUMN quantity REAL DEFAULT 1",
 	},
+	{
+		id: 7,
+		name: "create_user_goals_table",
+		sql: `CREATE TABLE IF NOT EXISTS user_goals (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			calories INTEGER NOT NULL DEFAULT 2000,
+			protein INTEGER NOT NULL DEFAULT 150,
+			carbs INTEGER NOT NULL DEFAULT 200,
+			fats INTEGER NOT NULL DEFAULT 65,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+	},
 ];
 
 async function runMigrations(database: ReturnType<typeof createClient>) {

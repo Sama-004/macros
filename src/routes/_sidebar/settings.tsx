@@ -1,27 +1,78 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { db } from "@/db/database";
+
+type Goals = {
+	calories: number;
+	protein: number;
+	carbs: number;
+	fats: number;
+};
+
+export const getGoals = createServerFn({ method: "GET" }).handler(async () => {
+	const result = await db.execute("SELECT * FROM user_goals LIMIT 1");
+
+	if (result.rows.length === 0) {
+		await db.execute(
+			"INSERT INTO user_goals (calories, protein, carbs, fats) VALUES (2000, 150, 200, 65)",
+		);
+		return { calories: 2000, protein: 150, carbs: 200, fats: 65 };
+	}
+
+	const row = result.rows[0];
+	return {
+		calories: row.calories as number,
+		protein: row.protein as number,
+		carbs: row.carbs as number,
+		fats: row.fats as number,
+	};
+});
+
+const updateGoals = createServerFn({ method: "POST" })
+	.inputValidator((data: Goals) => data)
+	.handler(async ({ data }) => {
+		const result = await db.execute("SELECT id FROM user_goals LIMIT 1");
+
+		if (result.rows.length === 0) {
+			await db.execute({
+				sql: "INSERT INTO user_goals (calories, protein, carbs, fats) VALUES (?, ?, ?, ?)",
+				args: [data.calories, data.protein, data.carbs, data.fats],
+			});
+		} else {
+			await db.execute({
+				sql: "UPDATE user_goals SET calories = ?, protein = ?, carbs = ?, fats = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+				args: [data.calories, data.protein, data.carbs, data.fats, result.rows[0].id as number],
+			});
+		}
+
+		return data;
+	});
 
 export const Route = createFileRoute("/_sidebar/settings")({
 	component: RouteComponent,
+	loader: async () => {
+		const goals = await getGoals();
+		return { goals };
+	},
 });
 
 function RouteComponent() {
-	const [goals, setGoals] = useState({
-		calories: 2000,
-		protein: 150,
-		carbs: 200,
-		fats: 65,
-	});
-
+	const loaderData = Route.useLoaderData();
+	const [goals, setGoals] = useState<Goals>(loaderData.goals);
 	const [isSaved, setIsSaved] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value } = e.target;
-		setGoals((prev) => ({ ...prev, [name]: Number.parseInt(value) }));
+		setGoals((prev) => ({ ...prev, [name]: Number.parseInt(value) || 0 }));
 		setIsSaved(false);
 	};
 
-	const handleSave = () => {
+	const handleSave = async () => {
+		setIsSaving(true);
+		await updateGoals({ data: goals });
+		setIsSaving(false);
 		setIsSaved(true);
 		setTimeout(() => setIsSaved(false), 2000);
 	};
@@ -97,9 +148,10 @@ function RouteComponent() {
 				<div className="mt-8 flex gap-3">
 					<button
 						onClick={handleSave}
-						className="px-6 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90"
+						disabled={isSaving}
+						className="px-6 py-2 bg-accent text-accent-foreground rounded-lg font-medium hover:opacity-90 disabled:opacity-50"
 					>
-						Save Goals
+						{isSaving ? "Saving..." : "Save Goals"}
 					</button>
 					{isSaved && (
 						<span className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium">

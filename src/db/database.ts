@@ -80,6 +80,24 @@ const migrations: Migration[] = [
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 	},
+	{
+		id: 8,
+		name: "create_goal_history_table",
+		sql: `CREATE TABLE IF NOT EXISTS goal_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			calories INTEGER NOT NULL,
+			protein INTEGER NOT NULL,
+			carbs INTEGER NOT NULL,
+			fats INTEGER NOT NULL,
+			effective_date TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+	},
+	{
+		id: 9,
+		name: "create_goal_history_index",
+		sql: "CREATE INDEX IF NOT EXISTS idx_goal_history_date ON goal_history(effective_date)",
+	},
 ];
 
 async function runMigrations(database: ReturnType<typeof createClient>) {

@@ -1,7 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { getCurrentUser } from "@/lib/auth";
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_sidebar")({
 	beforeLoad: async () => {
@@ -21,7 +21,12 @@ function SidebarLayout() {
 		<SidebarProvider>
 			<AppSidebar user={user} />
 			<main className="flex flex-col h-screen w-full">
-				<SidebarTrigger />
+				<div className="flex items-center h-10 px-2 border-b border-border shrink-0 md:hidden">
+					<SidebarTrigger />
+				</div>
+				<div className="hidden md:flex items-center h-10 px-2 shrink-0">
+					<SidebarTrigger />
+				</div>
 				<Outlet />
 			</main>
 		</SidebarProvider>

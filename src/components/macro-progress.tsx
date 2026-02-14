@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 interface MacroProgressProps {
 	label: string;
 	current: number;
@@ -14,54 +16,41 @@ export default function MacroProgress({
 	unit = "",
 }: MacroProgressProps) {
 	const percentage = Math.min((current / goal) * 100, 100);
-	const firstLetter = label.charAt(0).toUpperCase();
+	const isOver = current > goal;
 
 	return (
-		<div className="flex flex-col items-center">
-			<div
-				className="w-20 h-20 rounded-full flex items-center justify-center mb-3 relative"
-				style={{ borderColor: "var(--border)" }}
-			>
-				<svg
-					className="absolute w-20 h-20 -rotate-90"
-					viewBox="0 0 80 80"
-				>
-					<circle
-						cx="40"
-						cy="40"
-						r="36"
-						fill="none"
-						stroke="var(--border)"
-						strokeWidth="4"
-					/>
-					<circle
-						cx="40"
-						cy="40"
-						r="36"
-						fill="none"
-						className={color.replace("bg-", "stroke-")}
-						strokeWidth="4"
-						strokeLinecap="round"
-						strokeDasharray={`${2 * Math.PI * 36}`}
-						strokeDashoffset={`${2 * Math.PI * 36 * (1 - percentage / 100)}`}
-					/>
-				</svg>
-				<div className="text-center z-10 flex flex-col items-center">
-					<span
-						className={`text-lg font-bold ${color.replace("bg-", "text-")}`}
-					>
-						{firstLetter}
-					</span>
-					<span className="text-xs text-muted-foreground">
-						{Math.round(percentage)}%
-					</span>
-				</div>
+		<div className="flex flex-col gap-2">
+			<div className="flex items-center justify-between">
+				<span className="text-xs font-medium text-muted-foreground">
+					{label}
+				</span>
+				<span className="text-xs tabular-nums text-muted-foreground">
+					{Math.round(percentage)}%
+				</span>
 			</div>
-			<p className="text-sm font-medium text-foreground">{label}</p>
-			<p className="text-xs text-muted-foreground mt-0.5">
-				{current} / {goal}
-				{unit}
-			</p>
+			<div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
+				<div
+					className={cn(
+						"h-full rounded-full transition-all duration-500",
+						isOver ? "bg-red-500" : color,
+					)}
+					style={{ width: `${Math.min(percentage, 100)}%` }}
+				/>
+			</div>
+			<div className="flex items-baseline gap-1">
+				<span
+					className={cn(
+						"text-lg font-bold tabular-nums",
+						isOver ? "text-red-500" : color.replace("bg-", "text-"),
+					)}
+				>
+					{Math.round(current)}
+				</span>
+				<span className="text-xs text-muted-foreground">
+					/ {goal}
+					{unit}
+				</span>
+			</div>
 		</div>
 	);
 }

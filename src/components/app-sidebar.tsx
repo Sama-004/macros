@@ -1,18 +1,19 @@
-import { Home, Plus, Calendar, History, Settings, LogOut } from "lucide-react";
 import {
 	Sidebar,
 	SidebarContent,
+	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarGroupLabel,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-	SidebarFooter,
+	useSidebar,
 } from "@/components/ui/sidebar";
-import { Link, useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/lib/auth";
 import type { User } from "@/lib/session";
+import { Link, useRouter } from "@tanstack/react-router";
+import { Calendar, History, Home, LogOut, Plus, Settings } from "lucide-react";
 
 const menuItems = [
 	{ id: "Home", label: "Home", icon: Home, to: "/home" },
@@ -28,11 +29,18 @@ type AppSidebarProps = {
 
 export function AppSidebar({ user }: AppSidebarProps) {
 	const router = useRouter();
+	const { isMobile, setOpenMobile } = useSidebar();
 
 	const handleLogout = async () => {
 		const result = await logoutFn();
 		if (result.success) {
 			router.navigate({ to: "/auth/login" });
+		}
+	};
+
+	const handleNavClick = () => {
+		if (isMobile) {
+			setOpenMobile(false);
 		}
 	};
 
@@ -54,7 +62,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 								return (
 									<SidebarMenuItem key={item.id}>
 										<SidebarMenuButton asChild className="w-full">
-											<Link to={item.to}>
+											<Link to={item.to} onClick={handleNavClick}>
 												<Icon size={20} />
 												<span>{item.label}</span>
 											</Link>
@@ -74,6 +82,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
 						<p className="text-muted-foreground">Logged in</p>
 					</div>
 					<button
+						type="button"
 						onClick={handleLogout}
 						className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
 						title="Logout"

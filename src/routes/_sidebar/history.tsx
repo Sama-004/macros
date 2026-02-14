@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
 import MacroProgress from "@/components/macro-progress";
 import MealCard from "@/components/meal-card";
 import { db } from "@/db/database";
+import { createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
+import { getGoals } from "./settings";
 
 type Product = {
 	id: number;
@@ -122,6 +123,39 @@ const deleteMeal = createServerFn({ method: "POST" })
 		});
 	});
 
+const getGoalForDate = createServerFn({ method: "GET" })
+	.inputValidator((data: { date: string }) => data)
+	.handler(async ({ data }) => {
+		const result = await db.execute({
+			sql: `SELECT calories, protein, carbs, fats FROM goal_history
+				  WHERE effective_date <= ?
+				  ORDER BY effective_date DESC LIMIT 1`,
+			args: [data.date],
+		});
+		if (result.rows.length > 0) {
+			const row = result.rows[0];
+			return {
+				calories: row.calories as number,
+				protein: row.protein as number,
+				carbs: row.carbs as number,
+				fats: row.fats as number,
+			};
+		}
+		const fallback = await db.execute(
+			"SELECT calories, protein, carbs, fats FROM user_goals LIMIT 1",
+		);
+		if (fallback.rows.length > 0) {
+			const row = fallback.rows[0];
+			return {
+				calories: row.calories as number,
+				protein: row.protein as number,
+				carbs: row.carbs as number,
+				fats: row.fats as number,
+			};
+		}
+		return { calories: 2000, protein: 150, carbs: 200, fats: 65 };
+	});
+
 export const Route = createFileRoute("/_sidebar/history")({
 	component: RouteComponent,
 	validateSearch: (search: Record<string, unknown>) => {
@@ -130,18 +164,22 @@ export const Route = createFileRoute("/_sidebar/history")({
 		};
 	},
 	loader: async () => {
-		const products = await getProducts();
-		return { products };
+		const [products, defaultGoals] = await Promise.all([
+			getProducts(),
+			getGoals(),
+		]);
+		return { products, defaultGoals };
 	},
 });
 
 function RouteComponent() {
-	const { products } = Route.useLoaderData();
+	const { products, defaultGoals } = Route.useLoaderData();
 	const { date: initialDate } = Route.useSearch();
 	const [selectedDate, setSelectedDate] = useState(
 		initialDate || new Date().toISOString().split("T")[0],
 	);
 	const [meals, setMeals] = useState<Meal[]>([]);
+	const [goals, setGoals] = useState(defaultGoals);
 	const [isLoading, setIsLoading] = useState(false);
 	const [hasLoaded, setHasLoaded] = useState(false);
 	const [showAddMeal, setShowAddMeal] = useState(false);
@@ -152,8 +190,12 @@ function RouteComponent() {
 
 	const loadMeals = async (date: string) => {
 		setIsLoading(true);
-		const mealsData = await getMealsByDate({ data: { date } });
+		const [mealsData, dateGoals] = await Promise.all([
+			getMealsByDate({ data: { date } }),
+			getGoalForDate({ data: { date } }),
+		]);
 		setMeals(mealsData);
+		setGoals(dateGoals);
 		setIsLoading(false);
 		setHasLoaded(true);
 	};
@@ -197,8 +239,6 @@ function RouteComponent() {
 		{ calories: 0, protein: 0, carbs: 0, fats: 0 },
 	);
 
-	const goals = { calories: 2000, protein: 150, carbs: 200, fats: 65 };
-
 	const handleAddMeal = async () => {
 		if (!newMealName.trim()) return;
 		await addMealForDate({
@@ -231,7 +271,7 @@ function RouteComponent() {
 	};
 
 	const formatDisplayDate = (dateStr: string) => {
-		const date = new Date(dateStr + "T00:00:00");
+		const date = new Date(`${dateStr}T00:00:00`);
 		return date.toLocaleDateString("en-US", {
 			weekday: "long",
 			month: "long",

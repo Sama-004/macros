@@ -1,6 +1,7 @@
 import MacroProgress from "@/components/macro-progress";
 import MealCard from "@/components/meal-card";
 import { db } from "@/db/database";
+import { useAppSession } from "@/lib/session";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -40,9 +41,13 @@ const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 const getMealsByDate = createServerFn({ method: "GET" })
 	.inputValidator((data: { date: string }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		const mealsResult = await db.execute({
-			sql: "SELECT * FROM meals WHERE date = ? ORDER BY created_at ASC",
-			args: [data.date],
+			sql: "SELECT * FROM meals WHERE date = ? AND user_id = ? ORDER BY created_at ASC",
+			args: [data.date, userId],
 		});
 
 		const meals: Meal[] = [];
@@ -87,9 +92,13 @@ const getMealsByDate = createServerFn({ method: "GET" })
 const addMealForDate = createServerFn({ method: "POST" })
 	.inputValidator((data: { name: string; date: string }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		const result = await db.execute({
-			sql: "INSERT INTO meals (name, date) VALUES (?, ?) RETURNING id",
-			args: [data.name, data.date],
+			sql: "INSERT INTO meals (name, date, user_id) VALUES (?, ?, ?) RETURNING id",
+			args: [data.name, data.date, userId],
 		});
 		return result.rows[0].id as number;
 	});
@@ -99,6 +108,16 @@ const addMealItem = createServerFn({ method: "POST" })
 		(data: { mealId: number; productId: number; grams: number }) => data,
 	)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
+		const meal = await db.execute({
+			sql: "SELECT id FROM meals WHERE id = ? AND user_id = ?",
+			args: [data.mealId, userId],
+		});
+		if (meal.rows.length === 0) throw new Error("Meal not found");
+
 		await db.execute({
 			sql: "INSERT INTO meal_items (meal_id, product_id, grams) VALUES (?, ?, ?)",
 			args: [data.mealId, data.productId, data.grams],
@@ -108,18 +127,28 @@ const addMealItem = createServerFn({ method: "POST" })
 const removeMealItem = createServerFn({ method: "POST" })
 	.inputValidator((data: { itemId: number }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		await db.execute({
-			sql: "DELETE FROM meal_items WHERE id = ?",
-			args: [data.itemId],
+			sql: `DELETE FROM meal_items WHERE id = ? AND meal_id IN (
+				SELECT id FROM meals WHERE user_id = ?
+			)`,
+			args: [data.itemId, userId],
 		});
 	});
 
 const deleteMeal = createServerFn({ method: "POST" })
 	.inputValidator((data: { mealId: number }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		await db.execute({
-			sql: "DELETE FROM meals WHERE id = ?",
-			args: [data.mealId],
+			sql: "DELETE FROM meals WHERE id = ? AND user_id = ?",
+			args: [data.mealId, userId],
 		});
 	});
 

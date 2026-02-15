@@ -98,6 +98,16 @@ const migrations: Migration[] = [
 		name: "create_goal_history_index",
 		sql: "CREATE INDEX IF NOT EXISTS idx_goal_history_date ON goal_history(effective_date)",
 	},
+	{
+		id: 10,
+		name: "add_user_id_to_meals",
+		sql: "ALTER TABLE meals ADD COLUMN user_id INTEGER REFERENCES users(id)",
+	},
+	{
+		id: 11,
+		name: "create_meals_user_date_index",
+		sql: "CREATE INDEX IF NOT EXISTS idx_meals_user_date ON meals(user_id, date)",
+	},
 ];
 
 async function runMigrations(database: ReturnType<typeof createClient>) {

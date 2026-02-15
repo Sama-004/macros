@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db } from "@/db/database";
+import { useAppSession } from "@/lib/session";
 import { google } from "@ai-sdk/google";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
@@ -93,19 +94,23 @@ const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 const getTodaysMeal = createServerFn({ method: "GET" }).handler(async () => {
+	const session = await useAppSession();
+	const userId = session.data.userId;
+	if (!userId) throw new Error("Not authenticated");
+
 	const today = getToday();
 	let mealsResult = await db.execute({
-		sql: "SELECT * FROM meals WHERE date = ? LIMIT 1",
-		args: [today],
+		sql: "SELECT * FROM meals WHERE date = ? AND user_id = ? LIMIT 1",
+		args: [today, userId],
 	});
 	if (mealsResult.rows.length === 0) {
 		await db.execute({
-			sql: "INSERT INTO meals (name, date) VALUES (?, ?)",
-			args: ["Daily Log", today],
+			sql: "INSERT INTO meals (name, date, user_id) VALUES (?, ?, ?)",
+			args: ["Daily Log", today, userId],
 		});
 		mealsResult = await db.execute({
-			sql: "SELECT * FROM meals WHERE date = ? LIMIT 1",
-			args: [today],
+			sql: "SELECT * FROM meals WHERE date = ? AND user_id = ? LIMIT 1",
+			args: [today, userId],
 		});
 	}
 	const mealRow = mealsResult.rows[0];
@@ -140,6 +145,16 @@ const addMealItem = createServerFn({ method: "POST" })
 		(data: { mealId: number; productId: number; grams: number }) => data,
 	)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
+		const meal = await db.execute({
+			sql: "SELECT id FROM meals WHERE id = ? AND user_id = ?",
+			args: [data.mealId, userId],
+		});
+		if (meal.rows.length === 0) throw new Error("Meal not found");
+
 		await db.execute({
 			sql: "INSERT INTO meal_items (meal_id, product_id, grams) VALUES (?, ?, ?)",
 			args: [data.mealId, data.productId, data.grams],
@@ -149,9 +164,15 @@ const addMealItem = createServerFn({ method: "POST" })
 const removeMealItem = createServerFn({ method: "POST" })
 	.inputValidator((data: { itemId: number }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		await db.execute({
-			sql: "DELETE FROM meal_items WHERE id = ?",
-			args: [data.itemId],
+			sql: `DELETE FROM meal_items WHERE id = ? AND meal_id IN (
+				SELECT id FROM meals WHERE user_id = ?
+			)`,
+			args: [data.itemId, userId],
 		});
 	});
 

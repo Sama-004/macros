@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/db/database";
+import { useAppSession } from "@/lib/session";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import {
@@ -31,6 +32,10 @@ type GoalHistoryRow = {
 const getMonthlyData = createServerFn({ method: "GET" })
 	.inputValidator((data: { year: number; month: number }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		const startDate = `${data.year}-${String(data.month + 1).padStart(2, "0")}-01`;
 		const endDate = `${data.year}-${String(data.month + 1).padStart(2, "0")}-31`;
 		const result = await db.execute({
@@ -40,9 +45,9 @@ const getMonthlyData = createServerFn({ method: "GET" })
 				  FROM meals m
 				  JOIN meal_items mi ON m.id = mi.meal_id
 				  JOIN products p ON mi.product_id = p.id
-				  WHERE m.date >= ? AND m.date <= ?
+				  WHERE m.date >= ? AND m.date <= ? AND m.user_id = ?
 				  GROUP BY m.date`,
-			args: [startDate, endDate],
+			args: [startDate, endDate, userId],
 		});
 		return result.rows as unknown as DailyData[];
 	});

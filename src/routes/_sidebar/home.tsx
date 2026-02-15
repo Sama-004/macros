@@ -89,9 +89,14 @@ type ChatResponse = {
 const getToday = () => new Date().toISOString().split("T")[0];
 
 const getProducts = createServerFn({ method: "GET" }).handler(async () => {
-	const result = await db.execute(
-		"SELECT * FROM products WHERE deleted_at IS NULL ORDER BY name ASC",
-	);
+	const session = await useAppSession();
+	const userId = session.data.userId;
+	if (!userId) throw new Error("Not authenticated");
+
+	const result = await db.execute({
+		sql: "SELECT * FROM products WHERE deleted_at IS NULL OR user_id != ? ORDER BY name ASC",
+		args: [userId],
+	});
 	return result.rows as unknown as Product[];
 });
 

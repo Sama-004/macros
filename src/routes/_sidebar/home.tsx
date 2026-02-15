@@ -86,7 +86,10 @@ type ChatResponse = {
 
 // ── Server Functions ───────────────────────────────────
 
-const getToday = () => new Date().toISOString().split("T")[0];
+const getLocalDate = () => {
+	const now = new Date();
+	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
 const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 	const session = await useAppSession();
@@ -100,12 +103,14 @@ const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 	return result.rows as unknown as Product[];
 });
 
-const getTodaysMeal = createServerFn({ method: "GET" }).handler(async () => {
+const getTodaysMeal = createServerFn({ method: "GET" })
+	.inputValidator((data: { date: string }) => data)
+	.handler(async ({ data }) => {
 	const session = await useAppSession();
 	const userId = session.data.userId;
 	if (!userId) throw new Error("Not authenticated");
 
-	const today = getToday();
+	const today = data.date;
 	let mealsResult = await db.execute({
 		sql: "SELECT * FROM meals WHERE date = ? AND user_id = ? LIMIT 1",
 		args: [today, userId],
@@ -288,7 +293,7 @@ export const Route = createFileRoute("/_sidebar/home")({
 	component: RouteComponent,
 	loader: async () => {
 		const [meal, products, goals] = await Promise.all([
-			getTodaysMeal(),
+			getTodaysMeal({ data: { date: getLocalDate() } }),
 			getProducts(),
 			getGoals(),
 		]);
@@ -359,7 +364,7 @@ function RouteComponent() {
 		await addMealItem({
 			data: { mealId: meal.id, productId: selectedProduct, grams },
 		});
-		const updated = await getTodaysMeal();
+		const updated = await getTodaysMeal({ data: { date: getLocalDate() } });
 		setMeal(updated);
 		setShowAddItem(false);
 		setSelectedProduct(null);
@@ -371,7 +376,7 @@ function RouteComponent() {
 
 	const handleRemoveItem = async (itemId: number) => {
 		await removeMealItem({ data: { itemId } });
-		const updated = await getTodaysMeal();
+		const updated = await getTodaysMeal({ data: { date: getLocalDate() } });
 		setMeal(updated);
 		triggerSaved();
 	};

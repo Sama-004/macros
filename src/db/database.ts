@@ -68,19 +68,6 @@ const migrations: Migration[] = [
 		sql: "ALTER TABLE products ADD COLUMN quantity REAL DEFAULT 1",
 	},
 	{
-		id: 7,
-		name: "create_user_goals_table",
-		sql: `CREATE TABLE IF NOT EXISTS user_goals (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			calories INTEGER NOT NULL DEFAULT 2000,
-			protein INTEGER NOT NULL DEFAULT 150,
-			carbs INTEGER NOT NULL DEFAULT 200,
-			fats INTEGER NOT NULL DEFAULT 65,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-	},
-	{
 		id: 8,
 		name: "create_goal_history_table",
 		sql: `CREATE TABLE IF NOT EXISTS goal_history (
@@ -107,6 +94,36 @@ const migrations: Migration[] = [
 		id: 11,
 		name: "create_meals_user_date_index",
 		sql: "CREATE INDEX IF NOT EXISTS idx_meals_user_date ON meals(user_id, date)",
+	},
+	{
+		id: 12,
+		name: "add_goal_columns_to_users",
+		sql: "ALTER TABLE users ADD COLUMN goal_calories INTEGER NOT NULL DEFAULT 2000",
+	},
+	{
+		id: 13,
+		name: "add_goal_protein_to_users",
+		sql: "ALTER TABLE users ADD COLUMN goal_protein INTEGER NOT NULL DEFAULT 150",
+	},
+	{
+		id: 14,
+		name: "add_goal_carbs_to_users",
+		sql: "ALTER TABLE users ADD COLUMN goal_carbs INTEGER NOT NULL DEFAULT 200",
+	},
+	{
+		id: 15,
+		name: "add_goal_fats_to_users",
+		sql: "ALTER TABLE users ADD COLUMN goal_fats INTEGER NOT NULL DEFAULT 65",
+	},
+	{
+		id: 16,
+		name: "add_user_id_to_goal_history",
+		sql: "ALTER TABLE goal_history ADD COLUMN user_id INTEGER REFERENCES users(id)",
+	},
+	{
+		id: 17,
+		name: "create_goal_history_user_index",
+		sql: "CREATE INDEX IF NOT EXISTS idx_goal_history_user_date ON goal_history(user_id, effective_date)",
 	},
 ];
 

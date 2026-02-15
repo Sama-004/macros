@@ -55,12 +55,16 @@ const getMonthlyData = createServerFn({ method: "GET" })
 const getGoalHistory = createServerFn({ method: "GET" })
 	.inputValidator((data: { startDate: string; endDate: string }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		const result = await db.execute({
 			sql: `SELECT calories, protein, carbs, fats, effective_date
 				  FROM goal_history
-				  WHERE effective_date <= ?
+				  WHERE effective_date <= ? AND user_id = ?
 				  ORDER BY effective_date ASC`,
-			args: [data.endDate],
+			args: [data.endDate, userId],
 		});
 		return result.rows as unknown as GoalHistoryRow[];
 	});

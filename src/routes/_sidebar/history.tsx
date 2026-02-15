@@ -155,11 +155,15 @@ const deleteMeal = createServerFn({ method: "POST" })
 const getGoalForDate = createServerFn({ method: "GET" })
 	.inputValidator((data: { date: string }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		const result = await db.execute({
 			sql: `SELECT calories, protein, carbs, fats FROM goal_history
-				  WHERE effective_date <= ?
+				  WHERE effective_date <= ? AND user_id = ?
 				  ORDER BY effective_date DESC LIMIT 1`,
-			args: [data.date],
+			args: [data.date, userId],
 		});
 		if (result.rows.length > 0) {
 			const row = result.rows[0];
@@ -170,16 +174,17 @@ const getGoalForDate = createServerFn({ method: "GET" })
 				fats: row.fats as number,
 			};
 		}
-		const fallback = await db.execute(
-			"SELECT calories, protein, carbs, fats FROM user_goals LIMIT 1",
-		);
+		const fallback = await db.execute({
+			sql: "SELECT goal_calories, goal_protein, goal_carbs, goal_fats FROM users WHERE id = ?",
+			args: [userId],
+		});
 		if (fallback.rows.length > 0) {
 			const row = fallback.rows[0];
 			return {
-				calories: row.calories as number,
-				protein: row.protein as number,
-				carbs: row.carbs as number,
-				fats: row.fats as number,
+				calories: row.goal_calories as number,
+				protein: row.goal_protein as number,
+				carbs: row.goal_carbs as number,
+				fats: row.goal_fats as number,
 			};
 		}
 		return { calories: 2000, protein: 150, carbs: 200, fats: 65 };

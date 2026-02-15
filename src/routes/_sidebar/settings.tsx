@@ -1,7 +1,8 @@
+import { db } from "@/db/database";
+import { useAppSession } from "@/lib/session";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { db } from "@/db/database";
 
 type Goals = {
 	calories: number;
@@ -11,51 +12,42 @@ type Goals = {
 };
 
 export const getGoals = createServerFn({ method: "GET" }).handler(async () => {
-	const result = await db.execute("SELECT * FROM user_goals LIMIT 1");
+	const session = await useAppSession();
+	const userId = session.data.userId;
+	if (!userId) throw new Error("Not authenticated");
 
-	if (result.rows.length === 0) {
-		await db.execute(
-			"INSERT INTO user_goals (calories, protein, carbs, fats) VALUES (2000, 150, 200, 65)",
-		);
-		return { calories: 2000, protein: 150, carbs: 200, fats: 65 };
-	}
+	const result = await db.execute({
+		sql: "SELECT goal_calories, goal_protein, goal_carbs, goal_fats FROM users WHERE id = ?",
+		args: [userId],
+	});
+
+	if (result.rows.length === 0) throw new Error("User not found");
 
 	const row = result.rows[0];
 	return {
-		calories: row.calories as number,
-		protein: row.protein as number,
-		carbs: row.carbs as number,
-		fats: row.fats as number,
+		calories: row.goal_calories as number,
+		protein: row.goal_protein as number,
+		carbs: row.goal_carbs as number,
+		fats: row.goal_fats as number,
 	};
 });
 
 const updateGoals = createServerFn({ method: "POST" })
 	.inputValidator((data: Goals) => data)
 	.handler(async ({ data }) => {
-		const result = await db.execute("SELECT id FROM user_goals LIMIT 1");
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
 
-		if (result.rows.length === 0) {
-			await db.execute({
-				sql: "INSERT INTO user_goals (calories, protein, carbs, fats) VALUES (?, ?, ?, ?)",
-				args: [data.calories, data.protein, data.carbs, data.fats],
-			});
-		} else {
-			await db.execute({
-				sql: "UPDATE user_goals SET calories = ?, protein = ?, carbs = ?, fats = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-				args: [
-					data.calories,
-					data.protein,
-					data.carbs,
-					data.fats,
-					result.rows[0].id as number,
-				],
-			});
-		}
+		await db.execute({
+			sql: "UPDATE users SET goal_calories = ?, goal_protein = ?, goal_carbs = ?, goal_fats = ? WHERE id = ?",
+			args: [data.calories, data.protein, data.carbs, data.fats, userId],
+		});
 
 		const today = new Date().toISOString().split("T")[0];
 		const existing = await db.execute({
-			sql: "SELECT id FROM goal_history WHERE effective_date = ?",
-			args: [today],
+			sql: "SELECT id FROM goal_history WHERE effective_date = ? AND user_id = ?",
+			args: [today, userId],
 		});
 		if (existing.rows.length > 0) {
 			await db.execute({
@@ -70,8 +62,15 @@ const updateGoals = createServerFn({ method: "POST" })
 			});
 		} else {
 			await db.execute({
-				sql: "INSERT INTO goal_history (calories, protein, carbs, fats, effective_date) VALUES (?, ?, ?, ?, ?)",
-				args: [data.calories, data.protein, data.carbs, data.fats, today],
+				sql: "INSERT INTO goal_history (calories, protein, carbs, fats, effective_date, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+				args: [
+					data.calories,
+					data.protein,
+					data.carbs,
+					data.fats,
+					today,
+					userId,
+				],
 			});
 		}
 

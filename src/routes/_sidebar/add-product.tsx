@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { db } from "@/db/database";
+import { useAppSession } from "@/lib/session";
 import { google } from "@ai-sdk/google";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
@@ -19,11 +20,12 @@ type Product = {
 	protein: number;
 	carbs: number;
 	fats: number;
+	user_id: number | null;
 };
 
 const getProducts = createServerFn({ method: "GET" }).handler(async () => {
 	const result = await db.execute(
-		"SELECT * FROM products ORDER BY created_at DESC",
+		"SELECT * FROM products WHERE deleted_at IS NULL ORDER BY created_at DESC",
 	);
 	return result.rows as unknown as Product[];
 });
@@ -41,8 +43,12 @@ const addProduct = createServerFn({ method: "POST" })
 		}) => data,
 	)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		await db.execute({
-			sql: "INSERT INTO products (name, quantity, grams, calories, protein, carbs, fats) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			sql: "INSERT INTO products (name, quantity, grams, calories, protein, carbs, fats, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 			args: [
 				data.name,
 				data.quantity,
@@ -51,6 +57,7 @@ const addProduct = createServerFn({ method: "POST" })
 				data.protein,
 				data.carbs,
 				data.fats,
+				userId,
 			],
 		});
 	});
@@ -58,9 +65,13 @@ const addProduct = createServerFn({ method: "POST" })
 const deleteProduct = createServerFn({ method: "POST" })
 	.inputValidator((data: { id: number }) => data)
 	.handler(async ({ data }) => {
+		const session = await useAppSession();
+		const userId = session.data.userId;
+		if (!userId) throw new Error("Not authenticated");
+
 		await db.execute({
-			sql: "DELETE FROM products WHERE id = ?",
-			args: [data.id],
+			sql: "UPDATE products SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+			args: [data.id, userId],
 		});
 	});
 
@@ -99,6 +110,7 @@ export const Route = createFileRoute("/_sidebar/add-product")({
 });
 
 function RouteComponent() {
+	const { user } = Route.useRouteContext();
 	const initialProducts = Route.useLoaderData();
 	const [products, setProducts] = useState(initialProducts);
 	const [formData, setFormData] = useState({
@@ -447,15 +459,17 @@ function RouteComponent() {
 									</span>
 								</div>
 							</div>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								onClick={() => handleDeleteProduct(product.id)}
-								className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-							>
-								<Trash2 className="size-4" />
-							</Button>
+							{product.user_id === user.id && (
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-sm"
+									onClick={() => handleDeleteProduct(product.id)}
+									className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+								>
+									<Trash2 className="size-4" />
+								</Button>
+							)}
 						</div>
 					))}
 					{filteredProducts.length === 0 && (

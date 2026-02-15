@@ -34,7 +34,9 @@ type Meal = {
 };
 
 const getProducts = createServerFn({ method: "GET" }).handler(async () => {
-	const result = await db.execute("SELECT * FROM products ORDER BY name ASC");
+	const result = await db.execute(
+		"SELECT * FROM products WHERE deleted_at IS NULL ORDER BY name ASC",
+	);
 	return result.rows as unknown as Product[];
 });
 

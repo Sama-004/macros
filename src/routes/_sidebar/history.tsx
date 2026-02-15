@@ -217,7 +217,7 @@ function RouteComponent() {
 	const { products, defaultGoals } = Route.useLoaderData();
 	const { date: initialDate } = Route.useSearch();
 	const [selectedDate, setSelectedDate] = useState(
-		initialDate || new Date().toISOString().split("T")[0],
+		initialDate || (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`; })(),
 	);
 	const [meals, setMeals] = useState<Meal[]>([]);
 	const [goals, setGoals] = useState(defaultGoals);

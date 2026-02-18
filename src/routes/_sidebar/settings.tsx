@@ -33,7 +33,7 @@ export const getGoals = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 const updateGoals = createServerFn({ method: "POST" })
-	.inputValidator((data: Goals) => data)
+	.inputValidator((data: Goals & { today: string }) => data)
 	.handler(async ({ data }) => {
 		const session = await useAppSession();
 		const userId = session.data.userId;
@@ -44,7 +44,7 @@ const updateGoals = createServerFn({ method: "POST" })
 			args: [data.calories, data.protein, data.carbs, data.fats, userId],
 		});
 
-		const today = new Date().toISOString().split("T")[0];
+		const today = data.today;
 		const existing = await db.execute({
 			sql: "SELECT id FROM goal_history WHERE effective_date = ? AND user_id = ?",
 			args: [today, userId],
@@ -99,7 +99,9 @@ function RouteComponent() {
 
 	const handleSave = async () => {
 		setIsSaving(true);
-		await updateGoals({ data: goals });
+		const now = new Date();
+		const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+		await updateGoals({ data: { ...goals, today } });
 		setIsSaving(false);
 		setIsSaved(true);
 		setTimeout(() => setIsSaved(false), 2000);
